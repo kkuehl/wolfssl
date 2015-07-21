@@ -128,8 +128,13 @@
     /* do nothing */
 #else
     #ifndef SINGLE_THREADED
+        #if defined(WOLFSSL_LINUXKM)
+        #define WOLFSSL_KTHREADS
+        #include <linux/kthread.h>
+        #else
         #define WOLFSSL_PTHREADS
         #include <pthread.h>
+        #endif
     #endif
     #if defined(OPENSSL_EXTRA) || defined(GOAHEAD_WS)
         #include <unistd.h>      /* for close of BIO */

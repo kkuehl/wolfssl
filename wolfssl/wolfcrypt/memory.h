@@ -25,7 +25,9 @@
 #ifndef WOLFSSL_MEMORY_H
 #define WOLFSSL_MEMORY_H
 
+#if !defined(WOLFSSL_LINUXKM)
 #include <stdlib.h>
+#endif
 #include <wolfssl/wolfcrypt/types.h>
 
 #ifdef __cplusplus

@@ -121,6 +121,45 @@
     #define XTIME(tl)  (0)
     #define XGMTIME(c, t) wolfssl_MDK_gmtime((c))
     #define XVALIDATE_DATE(d, f, t)  ValidateDate((d), (f), (t))
+#elif defined(WOLFSSL_LINUXKM)
+   /* user time, and gmtime compatible functions, there is a gmtime 
+      implementation here that WINCE uses, so really just need some ticks
+      since the EPOCH 
+   */
+   #include <linux/time.h>
+   #include <linux/ktime.h>
+   unsigned long long GetUNIXCompatibleTime(void)
+   {
+	struct timespec ts;
+	getnstimeofday(&ts);
+	return ts.tv_sec * 1000000000LL + ts.tv_nsec;
+   }
+
+#if 0
+   struct tm {
+       int  tm_sec;     /* seconds after the minute [0-60] */
+       int  tm_min;     /* minutes after the hour [0-59] */
+       int  tm_hour;    /* hours since midnight [0-23] */
+       int  tm_mday;    /* day of the month [1-31] */
+       int  tm_mon;     /* months since January [0-11] */
+       int  tm_year;    /* years since 1900 */
+       int  tm_wday;    /* days since Sunday [0-6] */
+       int  tm_yday;    /* days since January 1 [0-365] */
+       int  tm_isdst;   /* Daylight Savings Time flag */
+       long tm_gmtoff;  /* offset from CUT in seconds */
+       char *tm_zone;   /* timezone abbreviation */
+   };
+#endif
+
+   /* forward declaration */
+   struct tm* gmtime(const time_t* timer);
+   time_t XTIME(time_t * timer)
+   {
+      return (time_t) (GetUNIXCompatibleTime() / 1000000000LL);
+   }
+
+   #define XGMTIME(c, t) gmtime((c))
+   #define XVALIDATE_DATE(d, f, t) ValidateDate((d), (f), (t))
 #elif defined(USER_TIME)
     /* user time, and gmtime compatible functions, there is a gmtime 
        implementation here that WINCE uses, so really just need some ticks
@@ -269,7 +308,9 @@ struct tm* gmtime(const time_t* timer)
     }
 
     ret->tm_mday  = (int)++dayno;
+#if !defined(WOLFSSL_LINUXKM)
     ret->tm_isdst = 0;
+#endif
 
     return ret;
 }

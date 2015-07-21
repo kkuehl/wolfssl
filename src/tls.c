@@ -53,6 +53,9 @@
 #ifndef WOLFSSL_HAVE_MIN
 #define WOLFSSL_HAVE_MIN
 
+#ifdef min
+#undef min
+#endif
     static INLINE word32 min(word32 a, word32 b)
     {
         return a > b ? b : a;
@@ -71,6 +74,7 @@
 static int p_hash(byte* result, word32 resLen, const byte* secret,
                    word32 secLen, const byte* seed, word32 seedLen, int hash)
 {
+    #undef current
     word32 len = P_HASH_MAX_SIZE;
     word32 times;
     word32 lastLen;
@@ -141,6 +145,9 @@ static int p_hash(byte* result, word32 resLen, const byte* secret,
 
     lastTime = times - 1;
 
+#if defined(WOLFSSL_LINUXKM)
+#undef min
+#endif
     if ((ret = wc_HmacSetKey(hmac, hash, secret, secLen)) == 0) {
         if ((ret = wc_HmacUpdate(hmac, seed, seedLen)) == 0) { /* A0 = seed */
             if ((ret = wc_HmacFinal(hmac, previous)) == 0) {   /* A1 */
@@ -155,10 +162,10 @@ static int p_hash(byte* result, word32 resLen, const byte* secret,
                     if (ret != 0)
                         break;
 
-                    if ((i == lastTime) && lastLen)
+                    if ((i == lastTime) && lastLen) {
                         XMEMCPY(&result[idx], current,
                                                  min(lastLen, P_HASH_MAX_SIZE));
-                    else {
+		    } else {
                         XMEMCPY(&result[idx], current, len);
                         idx += len;
                         ret = wc_HmacUpdate(hmac, previous, len);
@@ -3248,6 +3255,9 @@ int TLSX_Parse(WOLFSSL* ssl, byte* input, word16 length, byte isRequest,
     int ret = 0;
     word16 offset = 0;
 
+#if defined(WOLFSSL_LINUXKM)
+#undef min
+#endif
     if (!ssl || !input || (isRequest && !suites))
         return BAD_FUNC_ARG;
 

@@ -39,6 +39,9 @@
 #ifndef WOLFSSL_HAVE_MIN
 #define WOLFSSL_HAVE_MIN
 
+    #ifdef min
+    #undef min
+    #endif
     static INLINE word32 min(word32 a, word32 b)
     {
         return a > b ? b : a;

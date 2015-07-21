@@ -173,6 +173,9 @@
 #ifndef WOLFSSL_HAVE_MIN
 #define WOLFSSL_HAVE_MIN
 
+    #ifdef min
+    #undef min
+    #endif
     static INLINE word32 min(word32 a, word32 b)
     {
         return a > b ? b : a;
@@ -302,6 +305,9 @@ void wc_Md5Update(Md5* md5, const byte* data, word32 len)
     byte* local = (byte*)md5->buffer;
 
     while (len) {
+#if defined(WOLFSSL_LINUXKM)
+#undef min
+#endif
         word32 add = min(len, MD5_BLOCK_SIZE - md5->buffLen);
         XMEMCPY(&local[md5->buffLen], data, add);
 

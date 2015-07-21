@@ -32,9 +32,13 @@
 #include <wolfssl/internal.h>
 #include <wolfssl/error-ssl.h>
 
+#if defined(WOLFSSL_LINUXKM)
+#include <linux/string.h>
+#else
 #include <dirent.h>
 #include <sys/stat.h>
 #include <string.h>
+#endif
 
 #ifdef HAVE_CRL_MONITOR
     static int StopMonitor(int mfd);
@@ -692,6 +696,7 @@ static int StartMonitorCRL(WOLFSSL_CRL* crl)
 #endif  /* HAVE_CRL_MONITOR */
 
 
+#if !defined(WOLFSSL_LINUXKM)
 /* Load CRL path files of type, SSL_SUCCESS on ok */ 
 int LoadCRL(WOLFSSL_CRL* crl, const char* path, int type, int monitor)
 {
@@ -786,5 +791,6 @@ int LoadCRL(WOLFSSL_CRL* crl, const char* path, int type, int monitor)
 
     return ret;
 }
+#endif
 
 #endif /* HAVE_CRL */

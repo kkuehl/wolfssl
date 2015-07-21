@@ -92,7 +92,11 @@ void wolfSSL_Debugging_OFF(void)
 #ifdef FREESCALE_MQX
     #include <fio.h>
 #else
+    #if !defined(WOLFSSL_LINUXKM)
     #include <stdio.h>   /* for default printf stuff */
+    #else
+    #include<linux/kernel.h>
+    #endif
 #endif
 
 #ifdef THREADX
@@ -115,6 +119,8 @@ static void wolfssl_log(const int logLevel, const char *const logMessage)
             fflush(stdout) ;
             printf("%s\n", logMessage);
             fflush(stdout) ;
+#elif defined(WOLFSSL_LINUXKM)
+            printk("%s\n", logMessage);
 #else
             fprintf(stderr, "%s\n", logMessage);
 #endif

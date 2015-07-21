@@ -111,6 +111,9 @@
 /* Uncomment next line if building for VxWorks */
 /* #define WOLFSSL_VXWORKS */
 
+/* Uncomment next line if building for Linux Kernel Module */
+/* #define WOLFSSL_LINUXKM */
+
 #include <wolfssl/wolfcrypt/visibility.h>
 
 #ifdef WOLFSSL_USER_SETTINGS
@@ -279,6 +282,15 @@
 #ifdef WOLFSSL_VXWORKS
     #define NO_DEV_RANDOM
     #define NO_WRITEV
+#endif
+
+#ifdef WOLFSSL_LINUXKM
+    #define NO_DEV_RANDOM
+    #define NO_WRITEV
+    #define NO_FILESYSTEM
+    #define SIZEOF_LONG 8
+    #define SIZEOF_LONG_LONG 8
+    #define CHAR_BIT 8
 #endif
 
 

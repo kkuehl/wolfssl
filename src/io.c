@@ -73,6 +73,8 @@
         static int errno;
     #elif defined(WOLFSSL_TIRTOS)
         #include <sys/socket.h>
+    #elif defined(WOLFSSL_LINUXKM)
+        #include <linux/net.h>
     #elif defined(WOLFSSL_IAR_ARM)
         /* nothing */
     #else
@@ -187,6 +189,9 @@
 #elif defined(WOLFSSL_PICOTCP)
     #define SEND_FUNCTION pico_send
     #define RECV_FUNCTION pico_recv
+#elif defined(WOLFSSL_LINUXKM)
+    #define SEND_FUNCTION linuxkm_send 
+    #define RECV_FUNCTION linuxkm_recv
 #else
     #define SEND_FUNCTION send
     #define RECV_FUNCTION recv
@@ -216,6 +221,7 @@ static INLINE int TranslateReturnCode(int old, int sd)
     return old;
 }
 
+#if !defined(WOLFSSL_LINUXKM)
 static INLINE int LastError(void)
 {
 #ifdef USE_WINDOWS_API 
@@ -226,6 +232,26 @@ static INLINE int LastError(void)
     return errno;
 #endif
 }
+#endif
+
+#if defined(WOLFSSL_LINUXKM)
+int linuxkm_send(struct socket *socket, void *buf, int size, unsigned int flags)
+{
+        int ret;
+        struct kvec vec = { .iov_base = buf, .iov_len = size };
+        struct msghdr msg = { .msg_flags = flags };
+        ret = kernel_sendmsg(socket, &msg, &vec, 1, size);
+        return ret;
+}
+
+int linuxkm_recv(struct socket *socket, void *buf, int size, unsigned int flags) {
+        int ret;
+        struct kvec vec = { .iov_base = buf, .iov_len = size };
+        struct msghdr msg = { .msg_flags = flags };
+        ret = kernel_recvmsg(socket, &msg, &vec, 1, size, msg.msg_flags);
+        return ret;
+}
+#endif
 
 /* The receive embedded callback
  *  return : nb bytes read, or error
@@ -234,7 +260,11 @@ int EmbedReceive(WOLFSSL *ssl, char *buf, int sz, void *ctx)
 {
     int recvd;
     int err;
+#if !defined (WOLFSSL_LINUXKM)
     int sd = *(int*)ctx;
+#else
+    struct socket *sd = (struct socket*)ctx;
+#endif
 
 #ifdef WOLFSSL_DTLS
     {
@@ -259,10 +289,16 @@ int EmbedReceive(WOLFSSL *ssl, char *buf, int sz, void *ctx)
 
     recvd = (int)RECV_FUNCTION(sd, buf, sz, ssl->rflags);
 
+    #if !defined(WOLFSSL_LINUXKM)
     recvd = TranslateReturnCode(recvd, sd);
+    #endif
 
     if (recvd < 0) {
+        #if defined(WOLFSSL_LINUXKM)
+        err = recvd;
+        #else
         err = LastError();
+        #endif
         WOLFSSL_MSG("Embed Receive error");
 
         if (err == SOCKET_EWOULDBLOCK || err == SOCKET_EAGAIN) {
@@ -309,7 +345,11 @@ int EmbedReceive(WOLFSSL *ssl, char *buf, int sz, void *ctx)
  */
 int EmbedSend(WOLFSSL* ssl, char *buf, int sz, void *ctx)
 {
+#if !defined (WOLFSSL_LINUXKM)
     int sd = *(int*)ctx;
+#else
+    struct socket *sd = (struct socket*)ctx;
+#endif
     int sent;
     int len = sz;
     int err;
@@ -317,7 +357,11 @@ int EmbedSend(WOLFSSL* ssl, char *buf, int sz, void *ctx)
     sent = (int)SEND_FUNCTION(sd, &buf[sz - len], len, ssl->wflags);
 
     if (sent < 0) {
+        #if defined(WOLFSSL_LINUXKM)
+        err = sent;
+        #else
         err = LastError();
+        #endif
         WOLFSSL_MSG("Embed Send error");
 
         if (err == SOCKET_EWOULDBLOCK || err == SOCKET_EAGAIN) {
@@ -395,7 +439,11 @@ int EmbedReceiveFrom(WOLFSSL *ssl, char *buf, int sz, void *ctx)
     recvd = TranslateReturnCode(recvd, sd);
 
     if (recvd < 0) {
+        #if defined(WOLFSSL_LINUXKM)
+        err = recvd;
+        #else
         err = LastError();
+        #endif
         WOLFSSL_MSG("Embed Receive From error");
 
         if (err == SOCKET_EWOULDBLOCK || err == SOCKET_EAGAIN) {
@@ -455,7 +503,11 @@ int EmbedSendTo(WOLFSSL* ssl, char *buf, int sz, void *ctx)
                                 (const struct sockaddr*)dtlsCtx->peer.sa,
                                 dtlsCtx->peer.sz);
     if (sent < 0) {
+        #if defined(WOLFSSL_LINUXKM)
+        err = sent;
+        #else
         err = LastError();
+        #endif
         WOLFSSL_MSG("Embed Send To error");
 
         if (err == SOCKET_EWOULDBLOCK || err == SOCKET_EAGAIN) {

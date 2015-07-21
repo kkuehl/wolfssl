@@ -83,6 +83,9 @@
 #ifndef WOLFSSL_HAVE_MIN
 #define WOLFSSL_HAVE_MIN
 
+    #ifdef min
+    #undef min
+    #endif
     static INLINE word32 min(word32 a, word32 b)
     {
         return a > b ? b : a;
@@ -594,6 +597,9 @@ static int wolfSSL_read_internal(WOLFSSL* ssl, void* data, int sz, int peek)
         ssl->dtls_expected_rx = max(sz + 100, MAX_MTU);
 #endif
 
+#if defined(WOLFSSL_LINUXKM)
+#undef min
+#endif
 #ifdef HAVE_MAX_FRAGMENT
     ret = ReceiveData(ssl, (byte*)data,
                       min(sz, min(ssl->max_fragment, OUTPUT_RECORD_SIZE)),peek);
@@ -4371,6 +4377,9 @@ int wolfSSL_SetServerID(WOLFSSL* ssl, const byte* id, int len, int newSession)
     if (session == NULL) {
         WOLFSSL_MSG("Valid ServerID not cached already");
 
+#if defined(WOLFSSL_LINUXKM)
+#undef min
+#endif
         ssl->session.idLen = (word16)min(SERVER_ID_LEN, (word32)len);
         XMEMCPY(ssl->session.serverID, id, ssl->session.idLen);
     }
@@ -5968,6 +5977,9 @@ WOLFSSL_SESSION* GetSessionClient(WOLFSSL* ssl, const byte* id, int len)
 
     WOLFSSL_ENTER("GetSessionClient");
 
+#if defined(WOLFSSL_LINUXKM)
+#undef min
+#endif
     if (ssl->options.side == WOLFSSL_SERVER_END)
         return NULL;
 
@@ -5985,11 +5997,13 @@ WOLFSSL_SESSION* GetSessionClient(WOLFSSL* ssl, const byte* id, int len)
 
     /* start from most recently used */
     count = min((word32)ClientCache[row].totalCount, SESSIONS_PER_ROW);
+
     idx = ClientCache[row].nextIdx - 1;
     if (idx < 0)
         idx = SESSIONS_PER_ROW - 1; /* if back to front, the previous was end */
 
     for (; count > 0; --count, idx = idx ? idx - 1 : SESSIONS_PER_ROW - 1) {
+        #undef current
         WOLFSSL_SESSION* current;
         ClientSession   clSess;
 
@@ -6058,6 +6072,9 @@ WOLFSSL_SESSION* GetSession(WOLFSSL* ssl, byte* masterSecret)
         return 0;
 
     /* start from most recently used */
+#if defined(WOLFSSL_LINUXKM)
+#undef min
+#endif
     count = min((word32)SessionCache[row].totalCount, SESSIONS_PER_ROW);
     idx = SessionCache[row].nextIdx - 1;
     if (idx < 0)

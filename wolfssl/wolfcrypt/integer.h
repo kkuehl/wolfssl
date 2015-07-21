@@ -37,7 +37,11 @@
 #else
 
 #ifndef CHAR_BIT
+    #if defined(WOLFSSL_LINUXKM)
+    #include <linux/limits.h>
+    #else
     #include <limits.h>
+    #endif
 #endif
 
 #include <wolfssl/wolfcrypt/mpi_class.h>

@@ -68,8 +68,13 @@
     #include <ti/sysbios/knl/Semaphore.h>
 #else
     #ifndef SINGLE_THREADED
+        #if defined(WOLFSSL_LINUXKM)
+        #define WOLFSSL_KTHREADS
+        #include <linux/kthread.h>
+        #else
         #define WOLFSSL_PTHREADS
         #include <pthread.h>
+        #endif
     #endif
     #if defined(OPENSSL_EXTRA) || defined(GOAHEAD_WS)
         #include <unistd.h>      /* for close of BIO */
@@ -110,6 +115,8 @@
         typedef osMutexId wolfSSL_Mutex;
     #elif defined(WOLFSSL_TIRTOS)
         typedef ti_sysbios_knl_Semaphore_Handle wolfSSL_Mutex;
+    #elif defined(WOLFSSL_LINUXKM)
+        typedef struct mutex wolfSSL_Mutex; 
     #else
         #error Need a mutex type in multithreaded mode
     #endif /* USE_WINDOWS_API */

@@ -48,7 +48,9 @@
     #ifdef FREESCALE_MQX
         #include <fio.h>
     #else
+        #if !defined(WOLFSSL_LINUXKM) 
         #include <stdio.h>
+        #endif
     #endif
 #endif
 
@@ -141,7 +143,9 @@ static void PickHashSigAlgo(WOLFSSL* ssl,
 
 #ifndef WOLFSSL_HAVE_MIN
 #define WOLFSSL_HAVE_MIN
-
+    #ifdef min
+    #undef min
+    #endif
     static INLINE word32 min(word32 a, word32 b)
     {
         return a > b ? b : a;
@@ -2485,7 +2489,14 @@ ProtocolVersion MakeDTLSv1_2(void)
 
         return (word32) mqxTime.SECONDS;
     }
-
+#elif defined(WOLFSSL_LINUXKM)
+   #include <linux/time.h>
+   #include <linux/ktime.h>
+   word32 LowResTimer(void) {
+	struct timespec ts;
+	getnstimeofday(&ts);
+	return ts.tv_sec * 1000000000LL + ts.tv_nsec;
+   } 
 #elif defined(WOLFSSL_TIRTOS)
 
     word32 LowResTimer(void)
@@ -7143,6 +7154,9 @@ static int BuildMessage(WOLFSSL* ssl, byte* output, int outSz,
 
     /* write to output */
     if (ivSz) {
+#if defined(WOLFSSL_LINUXKM)
+        #undef min
+#endif
         XMEMCPY(output + idx, iv, min(ivSz, sizeof(iv)));
         idx += ivSz;
     }
@@ -7576,13 +7590,13 @@ int SendData(WOLFSSL* ssl, const void* data, int sz)
         dtlsExtra = DTLS_RECORD_EXTRA;
     }
 #endif
-
     for (;;) {
 #ifdef HAVE_MAX_FRAGMENT
         int   len = min(sz - sent, min(ssl->max_fragment, OUTPUT_RECORD_SIZE));
 #else
         int   len = min(sz - sent, OUTPUT_RECORD_SIZE);
 #endif
+
         byte* out;
         byte* sendBuffer = (byte*)data + sent;  /* may switch on comp */
         int   buffSz = len;                     /* may switch on comp */
@@ -8967,7 +8981,7 @@ int SetCipherList(Suites* suites, const char* list)
     int       haveAnon     = 0;
     const int suiteSz      = GetCipherNamesSize();
     char*     next         = (char*)list;
-
+    #undef current
     if (suites == NULL || list == NULL) {
         WOLFSSL_MSG("SetCipherList parameter error");
         return 0;
@@ -8983,8 +8997,12 @@ int SetCipherList(Suites* suites, const char* list)
         word32 length;
 
         next   = XSTRSTR(next, ":");
+#if defined(WOLFSSL_LINUXKM)
+        #undef min
+#endif
         length = min(sizeof(name), !next ? (word32)XSTRLEN(current) /* last */
                                          : (word32)(next - current));
+
 
         XSTRNCPY(name, current, length);
         name[(length == sizeof(name)) ? length - 1 : length] = 0;

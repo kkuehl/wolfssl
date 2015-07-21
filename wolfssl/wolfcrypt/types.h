@@ -176,16 +176,28 @@
 	    #define XREALLOC(p, n, h, t) realloc((p), (n))
 	#elif !defined(MICRIUM_MALLOC) && !defined(EBSNET) \
 	        && !defined(WOLFSSL_SAFERTOS) && !defined(FREESCALE_MQX) \
-	        && !defined(WOLFSSL_LEANPSK)
+	        && !defined(WOLFSSL_LEANPSK) && !defined(WOLFSSL_LINUXKM)
 	    /* default C runtime, can install different routines at runtime via cbs */
 	    #include <wolfssl/wolfcrypt/memory.h>
 	    #define XMALLOC(s, h, t)     ((void)h, (void)t, wolfSSL_Malloc((s)))
 	    #define XFREE(p, h, t)       {void* xp = (p); if((xp)) wolfSSL_Free((xp));}
 	    #define XREALLOC(p, n, h, t) wolfSSL_Realloc((p), (n))
+        #elif defined(WOLFSSL_LINUXKM)
+	    #ifdef min
+            #undef min
+            #endif
+            #include <linux/slab.h>
+	    #define XMALLOC(s, h, t)     ((void)h, (void)t, kmalloc((s), GFP_KERNEL))
+	    #define XFREE(p, h, t)       {void* xp = (p); if((xp)) kfree((xp));}
+	    #define XREALLOC(p, n, h, t) krealloc((p), (n), GFP_KERNEL)
 	#endif
 
 	#ifndef STRING_USER
+            #if defined(WOLFSSL_LINUXKM)
+	    #include <linux/string.h>
+            #else
 	    #include <string.h>
+            #endif
 	    char* mystrnstr(const char* s1, const char* s2, unsigned int n);
 
 	    #define XMEMCPY(d,s,l)    memcpy((d),(s),(l))
@@ -211,7 +223,11 @@
 	#endif
 
 	#ifndef CTYPE_USER
+            #if defined(WOLFSSL_LINUXKM)
+	    #include <linux/ctype.h>
+            #else
 	    #include <ctype.h>
+            #endif
 	    #if defined(HAVE_ECC) || defined(HAVE_OCSP)
 	        #define XTOUPPER(c)     toupper((c))
 	        #define XISALPHA(c)     isalpha((c))
