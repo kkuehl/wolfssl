@@ -44,7 +44,7 @@
 #ifndef WOLFSSL_ALLOW_NO_SUITES
     #if defined(NO_DH) && !defined(HAVE_ECC) && !defined(WOLFSSL_STATIC_RSA) \
                   && !defined(WOLFSSL_STATIC_DH) && !defined(WOLFSSL_STATIC_PSK)
-        #error "No cipher suites defined becuase DH disabled, ECC disabled, and no static suites defined. Please see top of README"
+        #error "No cipher suites defined because DH disabled, ECC disabled, and no static suites defined. Please see top of README"
     #endif
 #endif
 
