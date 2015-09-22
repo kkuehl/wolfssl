@@ -143,6 +143,9 @@
 	#ifdef HAVE_THREAD_LS
 	    #if defined(_MSC_VER)
 	        #define THREAD_LS_T __declspec(thread)
+	    /* Thread local storage only in FreeRTOS v8.2.1 and higher */
+	    #elif defined(FREERTOS)
+	        #define THREAD_LS_T
 	    #else
 	        #define THREAD_LS_T __thread
 	    #endif
@@ -158,7 +161,7 @@
 	#endif
 
 
-	/* idea to add global alloc override by Moisés Guimarães  */
+	/* idea to add global alloc override by Moises Guimaraes  */
 	/* default to libc stuff */
 	/* XREALLOC is used once in normal math lib, not in fast math lib */
 	/* XFREE on some embeded systems doesn't like free(0) so test  */
@@ -176,7 +179,10 @@
 	    #define XREALLOC(p, n, h, t) realloc((p), (n))
 	#elif !defined(MICRIUM_MALLOC) && !defined(EBSNET) \
 	        && !defined(WOLFSSL_SAFERTOS) && !defined(FREESCALE_MQX) \
-	        && !defined(WOLFSSL_LEANPSK) && !defined(WOLFSSL_LINUXKM)
+	        && !defined(FREESCALE_KSDK_MQX) && !defined(FREESCALE_FREE_RTOS) \
+            && !defined(WOLFSSL_LEANPSK) && !defined(FREERTOS) \
+            && !defined(WOLFSSL_uITRON4) && !defined(WOLFSSL_uTKERNEL2) \
+            && !defined(WOLFSSL_LINUXKM)
 	    /* default C runtime, can install different routines at runtime via cbs */
 	    #include <wolfssl/wolfcrypt/memory.h>
 	    #define XMALLOC(s, h, t)     ((void)h, (void)t, wolfSSL_Malloc((s)))
@@ -207,19 +213,26 @@
 
 	    #define XSTRLEN(s1)       strlen((s1))
 	    #define XSTRNCPY(s1,s2,n) strncpy((s1),(s2),(n))
-	    /* strstr, strncmp, and strncat only used by wolfSSL proper, not required for
-	       CTaoCrypt only */
+	    /* strstr, strncmp, and strncat only used by wolfSSL proper,
+         * not required for wolfCrypt only */
 	    #define XSTRSTR(s1,s2)    strstr((s1),(s2))
 	    #define XSTRNSTR(s1,s2,n) mystrnstr((s1),(s2),(n))
 	    #define XSTRNCMP(s1,s2,n) strncmp((s1),(s2),(n))
 	    #define XSTRNCAT(s1,s2,n) strncat((s1),(s2),(n))
 	    #ifndef USE_WINDOWS_API
 	        #define XSTRNCASECMP(s1,s2,n) strncasecmp((s1),(s2),(n))
-	        #define XSNPRINTF snprintf
 	    #else
 	        #define XSTRNCASECMP(s1,s2,n) _strnicmp((s1),(s2),(n))
-	        #define XSNPRINTF _snprintf
 	    #endif
+
+        #ifdef WOLFSSL_CERT_EXT
+            /* use only Thread Safe version of strtok */
+            #ifndef USE_WINDOWS_API
+                #define XSTRTOK strtok_r
+            #else
+                #define XSTRTOK strtok_s
+            #endif
+        #endif
 	#endif
 
 	#ifndef CTYPE_USER
@@ -228,7 +241,7 @@
             #else
 	    #include <ctype.h>
             #endif
-	    #if defined(HAVE_ECC) || defined(HAVE_OCSP)
+	    #if defined(HAVE_ECC) || defined(HAVE_OCSP) || defined(WOLFSSL_KEY_GEN)
 	        #define XTOUPPER(c)     toupper((c))
 	        #define XISALPHA(c)     isalpha((c))
 	    #endif
@@ -284,7 +297,9 @@
 	    DYNAMIC_TYPE_TLSX         = 43,
 	    DYNAMIC_TYPE_OCSP         = 44,
 	    DYNAMIC_TYPE_SIGNATURE    = 45,
-	    DYNAMIC_TYPE_HASHES       = 46
+	    DYNAMIC_TYPE_HASHES       = 46,
+        DYNAMIC_TYPE_SRP          = 47,
+        DYNAMIC_TYPE_COOKIE_PWD   = 48
 	};
 
 	/* max error buffer string size */

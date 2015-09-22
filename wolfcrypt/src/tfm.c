@@ -26,7 +26,7 @@
  */
 
 /**
- *  Edited by Moisés Guimarães (moisesguimaraesm@gmail.com)
+ *  Edited by Moises Guimaraes (moisesguimaraesm@gmail.com)
  *  to fit CyaSSL's needs.
  */
 
@@ -39,6 +39,7 @@
 
 #ifdef USE_FAST_MATH
 
+#include <wolfssl/wolfcrypt/random.h>
 #include <wolfssl/wolfcrypt/tfm.h>
 #include <wolfcrypt/src/asm.c>  /* will define asm MACROS or C ones */
 
@@ -1056,7 +1057,8 @@ static int _fp_exptmod(fp_int * G, fp_int * X, fp_int * P, fp_int * Y)
   }
 
   /* init M array */
-  XMEMSET(M, 0, sizeof(M));
+  for(x = 0; x < (int)(sizeof(M)/sizeof(fp_int)); x++)
+    fp_init(&M[x]);
 
   /* now setup montgomery  */
   if ((err = fp_montgomery_setup (P, &mp)) != FP_OKAY) {
@@ -1207,7 +1209,7 @@ int fp_exptmod(fp_int * G, fp_int * X, fp_int * P, fp_int * Y)
       fp_int tmp;
 
       /* yes, copy G and invmod it */
-      fp_copy(G, &tmp);
+      fp_init_copy(&tmp, G);
       if ((err = fp_invmod(&tmp, P, &tmp)) != FP_OKAY) {
          return err;
       }
@@ -1455,6 +1457,10 @@ int fp_cmp(fp_int *a, fp_int *b)
 /* compare against a single digit */
 int fp_cmp_d(fp_int *a, fp_digit b)
 {
+  /* special case for zero*/
+  if (a->used == 0 && b == 0)
+    return FP_EQ;
+
   /* compare based on sign */
   if ((b && a->used == 0) || a->sign == FP_NEG) {
     return FP_LT;
@@ -1563,7 +1569,7 @@ void fp_montgomery_calc_normalization(fp_int *a, fp_int *b)
 #endif
 
 #ifdef HAVE_INTEL_MULX
-static inline void innermul8_mulx(fp_digit *c_mulx, fp_digit *cy_mulx, fp_digit *tmpm, fp_digit mu)
+static INLINE void innermul8_mulx(fp_digit *c_mulx, fp_digit *cy_mulx, fp_digit *tmpm, fp_digit mu)
 {
     fp_digit _c0, _c1, _c2, _c3, _c4, _c5, _c6, _c7, cy ;
 
@@ -1815,10 +1821,37 @@ void fp_set(fp_int *a, fp_digit b)
 /* chek if a bit is set */
 int fp_is_bit_set (fp_int *a, fp_digit b)
 {
-    if ((fp_digit)a->used < b/DIGIT_BIT)
+    fp_digit i;
+
+    if (b > FP_MAX_BITS)
+        return 0;
+    else
+        i = b/DIGIT_BIT;
+
+    if ((fp_digit)a->used < i)
         return 0;
 
-    return (int)((a->dp[b/DIGIT_BIT] >> b%DIGIT_BIT) & (fp_digit)1);
+    return (int)((a->dp[i] >> b%DIGIT_BIT) & (fp_digit)1);
+}
+
+/* set the b bit of a */
+int fp_set_bit (fp_int * a, fp_digit b)
+{
+    fp_digit i;
+
+    if (b > FP_MAX_BITS)
+        return 0;
+    else
+        i = b/DIGIT_BIT;
+
+    /* set the used count of where the bit will go if required */
+    if (a->used < (int)(i+1))
+        a->used = (int)(i+1);
+
+    /* put the single bit in its place */
+    a->dp[i] |= ((fp_digit)1) << (b % DIGIT_BIT);
+
+    return MP_OKAY;
 }
 
 int fp_count_bits (fp_int * a)
@@ -1840,6 +1873,7 @@ int fp_count_bits (fp_int * a)
     ++r;
     q >>= ((fp_digit) 1);
   }
+
   return r;
 }
 
@@ -2127,9 +2161,10 @@ int mp_div_2d(fp_int* a, int b, fp_int* c, fp_int* d)
 #ifdef ALT_ECC_SIZE
 void fp_copy(fp_int *a, fp_int* b)
 {
-    if (a != b) {
+    if (a != b && b->size >= a->used) {
         b->used = a->used;
         b->sign = a->sign;
+
         XMEMCPY(b->dp, a->dp, a->used * sizeof(fp_digit));
     }
 }
@@ -2186,15 +2221,20 @@ void mp_rshb (mp_int* a, int x)
 
 
 /* fast math wrappers */
-int mp_set_int(fp_int *a, fp_digit b)
+int mp_set_int(mp_int *a, mp_digit b)
 {
     fp_set(a, b);
     return MP_OKAY;
 }
 
-int mp_is_bit_set (fp_int *a, fp_digit b)
+int mp_is_bit_set (mp_int *a, mp_digit b)
 {
     return fp_is_bit_set(a, b);
+}
+
+int mp_set_bit(mp_int *a, mp_digit b)
+{
+    return fp_set_bit(a, b);
 }
 
 #if defined(WOLFSSL_KEY_GEN) || defined (HAVE_ECC)
@@ -2230,6 +2270,20 @@ static const int lnz[16] = {
    4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0
 };
 
+#ifdef WOLFSSL_KEY_GEN
+/* swap the elements of two integers, for cases where you can't simply swap the
+ * mp_int pointers around
+ */
+static void fp_exch (fp_int * a, fp_int * b)
+{
+    fp_int  t;
+
+    t  = *a;
+    *a = *b;
+    *b = t;
+}
+#endif
+
 /* Counts the number of lsbs which are zero before the first zero bit */
 int fp_cnt_lsb(fp_int *a)
 {
@@ -2256,8 +2310,6 @@ int fp_cnt_lsb(fp_int *a)
    }
    return x;
 }
-
-
 
 
 static int s_is_power_of_two(fp_digit b, int *p)
@@ -2313,11 +2365,14 @@ static int fp_div_d(fp_int *a, fp_digit b, fp_int *c, fp_digit *d)
      return FP_OKAY;
   }
 
-  /* no easy answer [c'est la vie].  Just division */
-  fp_init(&q);
+  if (c != NULL) {
+    /* no easy answer [c'est la vie].  Just division */
+    fp_init(&q);
 
-  q.used = a->used;
-  q.sign = a->sign;
+    q.used = a->used;
+    q.sign = a->sign;
+  }
+
   w = 0;
   for (ix = a->used - 1; ix >= 0; ix--) {
      w = (w << ((fp_word)DIGIT_BIT)) | ((fp_word)a->dp[ix]);
@@ -2328,7 +2383,8 @@ static int fp_div_d(fp_int *a, fp_digit b, fp_int *c, fp_digit *d)
       } else {
         t = 0;
       }
-      q.dp[ix] = (fp_digit)t;
+      if (c != NULL)
+        q.dp[ix] = (fp_digit)t;
   }
 
   if (d != NULL) {
@@ -2362,6 +2418,7 @@ int mp_mod_d(fp_int *a, fp_digit b, fp_digit *c)
 void fp_gcd(fp_int *a, fp_int *b, fp_int *c);
 void fp_lcm(fp_int *a, fp_int *b, fp_int *c);
 int  fp_isprime(fp_int *a);
+int  fp_randprime(fp_int* N, int len, WC_RNG* rng, void* heap);
 
 int mp_gcd(fp_int *a, fp_int *b, fp_int *c)
 {
@@ -2381,6 +2438,31 @@ int mp_prime_is_prime(mp_int* a, int t, int* result)
 {
     (void)t;
     *result = fp_isprime(a);
+    return MP_OKAY;
+}
+
+int mp_rand_prime(mp_int* N, int len, WC_RNG* rng, void* heap)
+{
+    int err;
+
+    err = fp_randprime(N, len, rng, heap);
+    switch(err) {
+        case FP_VAL:
+            return MP_VAL;
+            break;
+        case FP_MEM:
+            return MP_MEM;
+            break;
+        default:
+            break;
+    }
+
+    return MP_OKAY;
+}
+
+int mp_exch (mp_int * a, mp_int * b)
+{
+    fp_exch(a, b);
     return MP_OKAY;
 }
 
@@ -2513,6 +2595,59 @@ int fp_isprime(fp_int *a)
    return FP_YES;
 }
 
+int fp_randprime(fp_int* N, int len, WC_RNG* rng, void* heap)
+{
+    static const int USE_BBS = 1;
+    int   err, type;
+    byte* buf;
+
+    /* get type */
+    if (len < 0) {
+        type = USE_BBS;
+        len = -len;
+    } else {
+        type = 0;
+    }
+
+    /* allow sizes between 2 and 512 bytes for a prime size */
+    if (len < 2 || len > 512) {
+        return FP_VAL;
+    }
+
+    /* allocate buffer to work with */
+    buf = (byte*)XMALLOC(len, heap, DYNAMIC_TYPE_TMP_BUFFER);
+    if (buf == NULL) {
+        return FP_MEM;
+    }
+    XMEMSET(buf, 0, len);
+
+    do {
+#ifdef SHOW_GEN
+        printf(".");
+        fflush(stdout);
+#endif
+        /* generate value */
+        err = wc_RNG_GenerateBlock(rng, buf, len);
+        if (err != 0) {
+            XFREE(buf, heap, DYNAMIC_TYPE_TMP_BUFFER);
+            return FP_VAL;
+        }
+
+        /* munge bits */
+        buf[0]     |= 0x80 | 0x40;
+        buf[len-1] |= 0x01 | ((type & USE_BBS) ? 0x02 : 0x00);
+
+        /* load value */
+        fp_read_unsigned_bin(N, buf, len);
+
+        /* test */
+    } while (fp_isprime(N) == FP_NO);
+
+    XMEMSET(buf, 0, len);
+    XFREE(buf, heap, DYNAMIC_TYPE_TMP_BUFFER);
+    
+    return FP_OKAY;
+}
 
 /* c = [a, b] */
 void fp_lcm(fp_int *a, fp_int *b, fp_int *c)
@@ -2597,12 +2732,14 @@ int mp_add_d(fp_int *a, fp_digit b, fp_int *c)
 #endif  /* HAVE_ECC || !NO_PWDBASED */
 
 
-#ifdef HAVE_ECC
+#if defined(HAVE_ECC) || defined(WOLFSSL_KEY_GEN) || defined(HAVE_COMP_KEY)
 
 /* chars used in radix conversions */
 static const char *fp_s_rmap = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                                 abcdefghijklmnopqrstuvwxyz+/";
+#endif
 
+#ifdef HAVE_ECC
 static int fp_read_radix(fp_int *a, const char *str, int radix)
 {
   int     y, neg;
@@ -2715,6 +2852,7 @@ int mp_cnt_lsb(fp_int* a)
 
 #endif /* HAVE_COMP_KEY */
 
+#endif /* HAVE_ECC */
 
 #if defined(WOLFSSL_KEY_GEN) || defined(HAVE_COMP_KEY)
 
@@ -2740,7 +2878,7 @@ int mp_radix_size (mp_int *a, int radix, int *size)
 
     if (fp_iszero(a) == MP_YES) {
         *size = 2;
-        return FP_YES;
+        return FP_OKAY;
     }
 
     /* digs is the digit count */
@@ -2825,8 +2963,6 @@ int mp_toradix (mp_int *a, char *str, int radix)
 }
 
 #endif /* defined(WOLFSSL_KEY_GEN) || defined(HAVE_COMP_KEY) */
-
-#endif /* HAVE_ECC */
 
 #endif /* USE_FAST_MATH */
 

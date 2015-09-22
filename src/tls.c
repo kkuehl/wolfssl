@@ -26,6 +26,8 @@
 
 #include <wolfssl/wolfcrypt/settings.h>
 
+#ifndef WOLFCRYPT_ONLY
+
 #include <wolfssl/ssl.h>
 #include <wolfssl/internal.h>
 #include <wolfssl/error-ssl.h>
@@ -317,7 +319,7 @@ static int PRF(byte* digest, word32 digLen, const byte* secret, word32 secLen,
 
         /* If a cipher suite wants an algorithm better than sha256, it
          * should use better. */
-        if (hash_type < sha256_mac)
+        if (hash_type < sha256_mac || hash_type == blake2b_mac)
             hash_type = sha256_mac;
         ret = p_hash(digest, digLen, secret, secLen, labelSeed,
                      labLen + seedLen, hash_type);
@@ -357,7 +359,7 @@ int BuildTlsFinished(WOLFSSL* ssl, Hashes* hashes, const byte* sender)
 
     if (IsAtLeastTLSv1_2(ssl)) {
 #ifndef NO_SHA256
-        if (ssl->specs.mac_algorithm <= sha256_mac) {
+        if (ssl->specs.mac_algorithm <= sha256_mac || ssl->specs.mac_algorithm == blake2b_mac) {
             int ret = wc_Sha256GetHash(&ssl->hsHashes->hashSha256,handshake_hash);
 
             if (ret != 0)
@@ -1010,6 +1012,7 @@ static int TLSX_SNI_Parse(WOLFSSL* ssl, byte* input, word16 length,
 #ifndef NO_WOLFSSL_SERVER
     word16 size = 0;
     word16 offset = 0;
+    int cacheOnly = 0;
 #endif
 
     TLSX *extension = TLSX_Find(ssl->extensions, SERVER_NAME_INDICATION);
@@ -1017,9 +1020,20 @@ static int TLSX_SNI_Parse(WOLFSSL* ssl, byte* input, word16 length,
     if (!extension)
         extension = TLSX_Find(ssl->ctx->extensions, SERVER_NAME_INDICATION);
 
-    if (!extension || !extension->data)
+
+
+    if (!extension || !extension->data) {
+#if defined(WOLFSSL_ALWAYS_KEEP_SNI) && !defined(NO_WOLFSSL_SERVER)
+        /* This will keep SNI even though TLSX_UseSNI has not been called.
+         * Enable it so that the received sni is available to functions
+         * that use a custom callback when SNI is received */
+        cacheOnly = 1;
+        WOLFSSL_MSG("Forcing SSL object to store SNI parameter");
+#else
         return isRequest ? 0             /* not using SNI.           */
                          : BUFFER_ERROR; /* unexpected SNI response. */
+#endif
+    }
 
     if (!isRequest)
         return length ? BUFFER_ERROR /* SNI response MUST be empty. */
@@ -1038,7 +1052,7 @@ static int TLSX_SNI_Parse(WOLFSSL* ssl, byte* input, word16 length,
         return BUFFER_ERROR;
 
     for (size = 0; offset < length; offset += size) {
-        SNI *sni;
+        SNI *sni = NULL;
         byte type = input[offset++];
 
         if (offset + OPAQUE16_LEN > length)
@@ -1050,14 +1064,16 @@ static int TLSX_SNI_Parse(WOLFSSL* ssl, byte* input, word16 length,
         if (offset + size > length)
             return BUFFER_ERROR;
 
-        if (!(sni = TLSX_SNI_Find((SNI*)extension->data, type)))
+        if (!cacheOnly && !(sni = TLSX_SNI_Find((SNI*)extension->data, type)))
             continue; /* not using this type of SNI. */
 
         switch(type) {
             case WOLFSSL_SNI_HOST_NAME: {
-                byte matched = (XSTRLEN(sni->data.host_name) == size)
+                int matchStat;
+                byte matched = cacheOnly ||
+                            ((XSTRLEN(sni->data.host_name) == size)
                             && (XSTRNCMP(sni->data.host_name,
-                                       (const char*)input + offset, size) == 0);
+                                       (const char*)input + offset, size) == 0));
 
                 if (matched || sni->options & WOLFSSL_SNI_ANSWER_ON_MISMATCH) {
                     int r = TLSX_UseSNI(&ssl->extensions,
@@ -1066,12 +1082,21 @@ static int TLSX_SNI_Parse(WOLFSSL* ssl, byte* input, word16 length,
                     if (r != SSL_SUCCESS)
                         return r; /* throws error. */
 
-                    TLSX_SNI_SetStatus(ssl->extensions, type,
-                                       matched ? WOLFSSL_SNI_REAL_MATCH
-                                               : WOLFSSL_SNI_FAKE_MATCH);
+                    if(cacheOnly) {
+                        WOLFSSL_MSG("Forcing storage of SNI, Fake match");
+                        matchStat = WOLFSSL_SNI_FORCE_KEEP;
+                    } else if(matched) {
+                        WOLFSSL_MSG("SNI did match!");
+                        matchStat = WOLFSSL_SNI_REAL_MATCH;
+                    } else {
+                        WOLFSSL_MSG("fake SNI match from ANSWER_ON_MISMATCH");
+                        matchStat = WOLFSSL_SNI_FAKE_MATCH;
+                    }
 
-                    TLSX_SetResponse(ssl, SERVER_NAME_INDICATION);
-                    WOLFSSL_MSG("SNI did match!");
+                    TLSX_SNI_SetStatus(ssl->extensions, type, matchStat);
+
+                    if(!cacheOnly)
+                        TLSX_SetResponse(ssl, SERVER_NAME_INDICATION);
 
                 } else if (!(sni->options & WOLFSSL_SNI_CONTINUE_ON_MISMATCH)) {
                     SendAlert(ssl, alert_fatal, unrecognized_name);
@@ -2065,7 +2090,7 @@ int TLSX_UseSessionTicket(TLSX** extensions, SessionTicket* ticket)
 
 
 #ifdef HAVE_QSH
-static RNG* rng;
+static WC_RNG* rng;
 static wolfSSL_Mutex* rngMutex;
 
 static void TLSX_QSH_FreeAll(QSHScheme* list)
@@ -2848,7 +2873,7 @@ static word32 GetEntropy(unsigned char* out, word32 num_bytes)
     int ret = 0;
 
     if (rng == NULL) {
-        if ((rng = XMALLOC(sizeof(RNG), 0, DYNAMIC_TYPE_TLSX)) == NULL)
+        if ((rng = XMALLOC(sizeof(WC_RNG), 0, DYNAMIC_TYPE_TLSX)) == NULL)
             return DRBG_OUT_OF_MEMORY;
         wc_InitRng(rng);
     }
@@ -3494,3 +3519,4 @@ int TLSX_Parse(WOLFSSL* ssl, byte* input, word16 length, byte isRequest,
 
 #endif /* NO_WOLFSSL_SERVER */
 #endif /* NO_TLS */
+#endif /* WOLFCRYPT_ONLY */

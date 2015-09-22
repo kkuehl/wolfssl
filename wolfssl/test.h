@@ -633,6 +633,7 @@ static INLINE void tcp_listen(SOCKET_T* sockfd, word16* port, int useAnyAddr,
 }
 
 
+#if 0
 static INLINE int udp_read_connect(SOCKET_T sockfd)
 {
     SOCKADDR_IN_T cliaddr;
@@ -652,6 +653,7 @@ static INLINE int udp_read_connect(SOCKET_T sockfd)
 
     return sockfd;
 }
+#endif
 
 static INLINE void udp_accept(SOCKET_T* sockfd, SOCKET_T* clientfd,
                               int useAnyAddr, word16 port, func_args* args)
@@ -706,7 +708,7 @@ static INLINE void udp_accept(SOCKET_T* sockfd, SOCKET_T* clientfd,
     ready->port = port;
 #endif
 
-    *clientfd = udp_read_connect(*sockfd);
+    *clientfd = *sockfd;
 }
 
 static INLINE void tcp_accept(SOCKET_T* sockfd, SOCKET_T* clientfd,
@@ -1520,6 +1522,8 @@ static INLINE int myDecryptVerifyCb(WOLFSSL* ssl,
 
     /* decrypt */
     ret = wc_AesCbcDecrypt(&decCtx->aes, decOut, decIn, decSz);
+    if (ret != 0)
+        return ret;
 
     if (wolfSSL_GetCipherType(ssl) == WOLFSSL_AEAD_TYPE) {
         *padSz = wolfSSL_GetAeadMacSize(ssl);
@@ -1606,7 +1610,7 @@ static INLINE void FreeAtomicUser(WOLFSSL* ssl)
 static INLINE int myEccSign(WOLFSSL* ssl, const byte* in, word32 inSz,
         byte* out, word32* outSz, const byte* key, word32 keySz, void* ctx)
 {
-    RNG     rng;
+    WC_RNG  rng;
     int     ret;
     word32  idx = 0;
     ecc_key myKey;
@@ -1657,7 +1661,7 @@ static INLINE int myEccVerify(WOLFSSL* ssl, const byte* sig, word32 sigSz,
 static INLINE int myRsaSign(WOLFSSL* ssl, const byte* in, word32 inSz,
         byte* out, word32* outSz, const byte* key, word32 keySz, void* ctx)
 {
-    RNG     rng;
+    WC_RNG  rng;
     int     ret;
     word32  idx = 0;
     RsaKey  myKey;
@@ -1715,7 +1719,7 @@ static INLINE int myRsaEnc(WOLFSSL* ssl, const byte* in, word32 inSz,
     int     ret;
     word32  idx = 0;
     RsaKey  myKey;
-    RNG     rng;
+    WC_RNG  rng;
 
     (void)ssl;
     (void)ctx;
@@ -1820,8 +1824,8 @@ static INLINE const char* mymktemp(char *tempfn, int len, int num)
     int x, size;
     static const char alphanum[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                    "abcdefghijklmnopqrstuvwxyz";
-    RNG rng;
-    byte out;
+    WC_RNG rng;
+    byte   out;
 
     if (tempfn == NULL || len < 1 || num < 1 || len <= num) {
         printf("Bad input\n");
@@ -1862,7 +1866,7 @@ static INLINE const char* mymktemp(char *tempfn, int len, int num)
     } key_ctx;
 
     static key_ctx myKey_ctx;
-    static RNG rng;
+    static WC_RNG rng;
 
     static INLINE int TicketInit(void)
     {

@@ -172,18 +172,27 @@ enum Misc_ASN {
         MAX_ATTRIB_SZ   = MAX_SEQ_SZ * 3 + (11 + MAX_SEQ_SZ) * 2 +
                           MAX_PRSTR_SZ + CTC_NAME_SIZE, /* 11 is the OID size */
     #endif
-    #ifdef WOLFSSL_ALT_NAMES
+    #if defined(WOLFSSL_ALT_NAMES) || defined(WOLFSSL_CERT_EXT)
         MAX_EXTENSIONS_SZ   = 1 + MAX_LENGTH_SZ + CTC_MAX_ALT_SIZE,
     #else
         MAX_EXTENSIONS_SZ   = 1 + MAX_LENGTH_SZ + MAX_CA_SZ,
     #endif
                                    /* Max total extensions, id + len + others */
 #endif
+#ifdef WOLFSSL_CERT_EXT
+    MAX_KID_SZ			= 45,	   /* Max encoded KID length (SHA-256 case) */
+    MAX_KEYUSAGE_SZ     = 18,      /* Max encoded Key Usage length */
+    MAX_OID_SZ          = 32,      /* Max DER length of OID*/
+    MAX_OID_STRING_SZ   = 64,      /* Max string length representation of OID*/
+    MAX_CERTPOL_NB      = CTC_MAX_CERTPOL_NB,/* Max number of Cert Policy */
+    MAX_CERTPOL_SZ      = CTC_MAX_CERTPOL_SZ,
+#endif
     MAX_OCSP_EXT_SZ     = 58,      /* Max OCSP Extension length */
     MAX_OCSP_NONCE_SZ   = 18,      /* OCSP Nonce size           */
     EIGHTK_BUF          = 8192,    /* Tmp buffer size           */
-    MAX_PUBLIC_KEY_SZ   = MAX_NTRU_ENC_SZ + MAX_ALGO_SZ + MAX_SEQ_SZ * 2
+    MAX_PUBLIC_KEY_SZ   = MAX_NTRU_ENC_SZ + MAX_ALGO_SZ + MAX_SEQ_SZ * 2,
                                    /* use bigger NTRU size */
+    HEADER_ENCRYPTED_KEY_SIZE = 88 /* Extra header size for encrypted key */
 };
 
 
@@ -276,17 +285,23 @@ enum VerifyType {
     VERIFY    = 1
 };
 
+#ifdef WOLFSSL_CERT_EXT
+enum KeyIdType {
+    SKID_TYPE = 0,
+    AKID_TYPE = 1
+};
+#endif
 
 /* Key usage extension bits */
-#define KEYUSE_DIGITAL_SIG    0x0100
-#define KEYUSE_CONTENT_COMMIT 0x0080
-#define KEYUSE_KEY_ENCIPHER   0x0040
-#define KEYUSE_DATA_ENCIPHER  0x0020
-#define KEYUSE_KEY_AGREE      0x0010
-#define KEYUSE_KEY_CERT_SIGN  0x0008
-#define KEYUSE_CRL_SIGN       0x0004
-#define KEYUSE_ENCIPHER_ONLY  0x0002
-#define KEYUSE_DECIPHER_ONLY  0x0001
+#define KEYUSE_DIGITAL_SIG    0x0080
+#define KEYUSE_CONTENT_COMMIT 0x0040
+#define KEYUSE_KEY_ENCIPHER   0x0020
+#define KEYUSE_DATA_ENCIPHER  0x0010
+#define KEYUSE_KEY_AGREE      0x0008
+#define KEYUSE_KEY_CERT_SIGN  0x0004
+#define KEYUSE_CRL_SIGN       0x0002
+#define KEYUSE_ENCIPHER_ONLY  0x0001
+#define KEYUSE_DECIPHER_ONLY  0x8000
 
 #define EXTKEYUSE_ANY         0x08
 #define EXTKEYUSE_OCSP_SIGN   0x04
@@ -474,8 +489,32 @@ struct DecodedCert {
         byte    extCertPolicyCrit;
     #endif /* OPENSSL_EXTRA */
 #endif /* WOLFSSL_SEP */
+#ifdef WOLFSSL_CERT_EXT
+    char    extCertPolicies[MAX_CERTPOL_NB][MAX_CERTPOL_SZ];
+    int     extCertPoliciesNb;
+#endif /* WOLFSSL_CERT_EXT */
 };
 
+extern const char* BEGIN_CERT;
+extern const char* END_CERT;
+extern const char* BEGIN_CERT_REQ;
+extern const char* END_CERT_REQ;
+extern const char* BEGIN_DH_PARAM;
+extern const char* END_DH_PARAM;
+extern const char* BEGIN_X509_CRL;
+extern const char* END_X509_CRL;
+extern const char* BEGIN_RSA_PRIV;
+extern const char* END_RSA_PRIV;
+extern const char* BEGIN_PRIV_KEY;
+extern const char* END_PRIV_KEY;
+extern const char* BEGIN_ENC_PRIV_KEY;
+extern const char* END_ENC_PRIV_KEY;
+extern const char* BEGIN_EC_PRIV;
+extern const char* END_EC_PRIV;
+extern const char* BEGIN_DSA_PRIV;
+extern const char* END_DSA_PRIV;
+extern const char* BEGIN_PUB_KEY;
+extern const char* END_PUB_KEY;
 
 #ifdef NO_SHA
     #define SIGNER_DIGEST_SIZE SHA256_DIGEST_SIZE

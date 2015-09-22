@@ -53,8 +53,14 @@
     /* do nothing */
 #elif defined(EBSNET)
     /* do nothing */
-#elif defined(FREESCALE_MQX)
+#elif defined(FREESCALE_MQX) || defined(FREESCALE_KSDK_MQX)
     /* do nothing */
+#elif defined(FREESCALE_FREE_RTOS)
+    #include "fsl_os_abstraction.h"
+#elif defined(WOLFSSL_uITRON4)
+    #include "kernel.h"
+#elif  defined(WOLFSSL_uTKERNEL2)
+    #include "tk/tkernel.h"
 #elif defined(WOLFSSL_MDK_ARM)
     #if defined(WOLFSSL_MDK5)
          #include "cmsis_os.h"
@@ -103,8 +109,20 @@
         typedef OS_MUTEX wolfSSL_Mutex;
     #elif defined(EBSNET)
         typedef RTP_MUTEX wolfSSL_Mutex;
-    #elif defined(FREESCALE_MQX)
+    #elif defined(FREESCALE_MQX) || defined(FREESCALE_KSDK_MQX)
         typedef MUTEX_STRUCT wolfSSL_Mutex;
+    #elif defined(FREESCALE_FREE_RTOS)
+        typedef mutex_t wolfSSL_Mutex;
+    #elif defined(WOLFSSL_uITRON4)
+        typedef struct wolfSSL_Mutex {
+            T_CSEM sem ;
+            ID     id ;
+        } wolfSSL_Mutex;
+    #elif defined(WOLFSSL_uTKERNEL2)
+        typedef struct wolfSSL_Mutex {
+            T_CSEM sem ;
+            ID     id ;
+        } wolfSSL_Mutex;
     #elif defined(WOLFSSL_MDK_ARM)
         #if defined(WOLFSSL_CMSIS_RTOS)
             typedef osMutexId wolfSSL_Mutex;
@@ -201,9 +219,14 @@ WOLFSSL_LOCAL int UnLockMutex(wolfSSL_Mutex*);
 
 
 /* Windows API defines its own min() macro. */
-#if defined(USE_WINDOWS_API) && defined(min)
-    #define WOLFSSL_HAVE_MIN
-#endif
+#if defined(USE_WINDOWS_API)
+    #ifdef min
+        #define WOLFSSL_HAVE_MIN
+    #endif /* min */
+    #ifdef max
+        #define WOLFSSL_HAVE_MAX
+    #endif /* max */
+#endif /* USE_WINDOWS_API */
 
 
 #ifdef __cplusplus

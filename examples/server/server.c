@@ -34,11 +34,11 @@
     #define WOLFSSL_TRACK_MEMORY
 #endif
 
-#if defined(CYASSL_MDK_ARM)
+#if defined(WOLFSSL_MDK_ARM)
         #include <stdio.h>
         #include <string.h>
 
-        #if defined(CYASSL_MDK5)
+        #if defined(WOLFSSL_MDK5)
             #include "cmsis_os.h"
             #include "rl_fs.h" 
             #include "rl_net.h" 
@@ -46,7 +46,7 @@
             #include "rtl.h"
         #endif
 
-        #include "cyassl_MDK_ARM.h"
+        #include "wolfssl_MDK_ARM.h"
 #endif
 #include <cyassl/openssl/ssl.h>
 #include <cyassl/test.h>
@@ -158,6 +158,9 @@ static void Usage(void)
 #ifdef HAVE_ANON
     printf("-a          Anonymous server\n");
 #endif
+#ifndef NO_PSK
+    printf("-I          Do not send PSK identity hint\n");
+#endif
 }
 
 THREAD_RETURN CYASSL_THREAD server_test(void* args)
@@ -176,7 +179,7 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
     int    version = SERVER_DEFAULT_VERSION;
     int    doCliCertCheck = 1;
     int    useAnyAddr = 0;
-    word16 port = yasslPort;
+    word16 port = wolfSSLPort;
     int    usePsk = 0;
     int    useAnon = 0;
     int    doDTLS = 0;
@@ -198,6 +201,10 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
     const char* ourDhParam = dhParam;
     int    argc = ((func_args*)args)->argc;
     char** argv = ((func_args*)args)->argv;
+
+#ifndef NO_PSK
+    int sendPskIdentityHint = 1;
+#endif
 
 #ifdef HAVE_SNI
     char*  sniHostName = NULL;
@@ -230,7 +237,7 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
     fdOpenSession(Task_self());
 #endif
 
-    while ((ch = mygetopt(argc, argv, "?dbstnNufrRawPp:v:l:A:c:k:Z:S:oO:D:"))
+    while ((ch = mygetopt(argc, argv, "?dbstnNufrRawPIp:v:l:A:c:k:Z:S:oO:D:"))
                          != -1) {
         switch (ch) {
             case '?' :
@@ -363,6 +370,11 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
                     useAnon = 1;
                 #endif
                 break;
+            case 'I':
+                #ifndef NO_PSK
+                    sendPskIdentityHint = 0;
+                #endif
+                break;
 
             default:
                 Usage();
@@ -390,14 +402,16 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
 
 #ifdef USE_CYASSL_MEMORY
     if (trackMemory)
-        InitMemoryTracker(); 
+        InitMemoryTracker();
 #endif
 
     switch (version) {
 #ifndef NO_OLD_TLS
+    #ifdef WOLFSSL_ALLOW_SSLV3
         case 0:
             method = SSLv3_server_method();
             break;
+    #endif
 
     #ifndef NO_TLS
         case 1:
@@ -500,7 +514,10 @@ THREAD_RETURN CYASSL_THREAD server_test(void* args)
     if (usePsk) {
 #ifndef NO_PSK
         SSL_CTX_set_psk_server_callback(ctx, my_psk_server_cb);
-        SSL_CTX_use_psk_identity_hint(ctx, "cyassl server");
+
+        if (sendPskIdentityHint == 1)
+            SSL_CTX_use_psk_identity_hint(ctx, "cyassl server");
+
         if (cipherList == NULL) {
             const char *defaultCipherList;
             #if defined(HAVE_AESGCM) && !defined(NO_DH)
@@ -561,7 +578,7 @@ while (1) {  /* allow resume option */
                              (ACCEPT_THIRD_T)&client_len);
         } else {
             tcp_listen(&sockfd, &port, useAnyAddr, doDTLS);
-            clientfd = udp_read_connect(sockfd);
+            clientfd = sockfd;
         }
         #ifdef USE_WINDOWS_API
             if (clientfd == INVALID_SOCKET) err_sys("tcp accept failed");
@@ -605,6 +622,24 @@ while (1) {  /* allow resume option */
     }
 
     SSL_set_fd(ssl, clientfd);
+#ifdef WOLFSSL_DTLS
+    if (doDTLS) {
+        SOCKADDR_IN_T cliaddr;
+        byte          b[1500];
+        int           n;
+        socklen_t     len = sizeof(cliaddr);
+
+        /* For DTLS, peek at the next datagram so we can get the client's
+         * address and set it into the ssl object later to generate the
+         * cookie. */
+        n = (int)recvfrom(sockfd, (char*)b, sizeof(b), MSG_PEEK,
+                          (struct sockaddr*)&cliaddr, &len);
+        if (n <= 0)
+            err_sys("recvfrom failed");
+
+        wolfSSL_dtls_set_peer(ssl, &cliaddr, len);
+    }
+#endif
     if (usePsk == 0 || useAnon == 1 || cipherList != NULL || needDH == 1) {
         #if !defined(NO_FILESYSTEM) && !defined(NO_DH) && !defined(NO_ASN)
             CyaSSL_SetTmpDH_file(ssl, ourDhParam, SSL_FILETYPE_PEM);
@@ -644,7 +679,7 @@ while (1) {  /* allow resume option */
     if (SSL_write(ssl, msg, sizeof(msg)) != sizeof(msg))
         err_sys("SSL_write failed");
         
-    #if defined(CYASSL_MDK_SHELL) && defined(HAVE_MDK_RTX)
+    #if defined(WOLFSSL_MDK_SHELL) && defined(HAVE_MDK_RTX)
         os_dly_wait(500) ;
     #elif defined (CYASSL_TIRTOS)
         Task_yield();
@@ -714,7 +749,7 @@ while (1) {  /* allow resume option */
         args.argv = argv;
 
         CyaSSL_Init();
-#if defined(DEBUG_CYASSL) && !defined(CYASSL_MDK_SHELL)
+#if defined(DEBUG_CYASSL) && !defined(WOLFSSL_MDK_SHELL)
         CyaSSL_Debugging_ON();
 #endif
         if (CurrentDir("_build"))

@@ -91,23 +91,9 @@ void wc_Des_SetIV(Des* des, const byte* iv)
 }
 
 
-int wc_Des_CbcDecryptWithKey(byte* out, const byte* in, word32 sz,
-                                                const byte* key, const byte* iv)
-{
-    return Des_CbcDecryptWithKey(out, in, sz, key, iv);
-}
-
-
 int wc_Des3_SetIV(Des3* des, const byte* iv)
 {
     return Des3_SetIV_fips(des, iv);
-}
-
-
-int wc_Des3_CbcDecryptWithKey(byte* out, const byte* in, word32 sz,
-                                                const byte* key, const byte* iv)
-{
-    return Des3_CbcDecryptWithKey(out, in, sz, key, iv);
 }
 
 
@@ -1490,34 +1476,6 @@ void wc_Des_SetIV(Des* des, const byte* iv)
 }
 
 
-int wc_Des_CbcDecryptWithKey(byte* out, const byte* in, word32 sz,
-                                                const byte* key, const byte* iv)
-{
-    int ret  = 0;
-#ifdef WOLFSSL_SMALL_STACK
-    Des* des = NULL;
-#else
-    Des  des[1];
-#endif
-
-#ifdef WOLFSSL_SMALL_STACK
-    des = (Des*)XMALLOC(sizeof(Des), NULL, DYNAMIC_TYPE_TMP_BUFFER);
-    if (des == NULL)
-        return MEMORY_E;
-#endif
-
-    ret = wc_Des_SetKey(des, key, iv, DES_DECRYPTION);
-    if (ret == 0)
-        ret = wc_Des_CbcDecrypt(des, out, in, sz); 
-
-#ifdef WOLFSSL_SMALL_STACK
-    XFREE(des, NULL, DYNAMIC_TYPE_TMP_BUFFER);
-#endif
-
-    return ret;
-}
-
-
 int wc_Des3_SetIV(Des3* des, const byte* iv)
 {
     if (des && iv)
@@ -1526,34 +1484,6 @@ int wc_Des3_SetIV(Des3* des, const byte* iv)
         XMEMSET(des->reg,  0, DES_BLOCK_SIZE);
 
     return 0;
-}
-
-
-int wc_Des3_CbcDecryptWithKey(byte* out, const byte* in, word32 sz,
-                                                const byte* key, const byte* iv)
-{
-    int ret    = 0;
-#ifdef WOLFSSL_SMALL_STACK
-    Des3* des3 = NULL;
-#else
-    Des3  des3[1];
-#endif
-
-#ifdef WOLFSSL_SMALL_STACK
-    des3 = (Des3*)XMALLOC(sizeof(Des3), NULL, DYNAMIC_TYPE_TMP_BUFFER);
-    if (des3 == NULL)
-        return MEMORY_E;
-#endif
-
-    ret = wc_Des3_SetKey(des3, key, iv, DES_DECRYPTION);
-    if (ret == 0)
-        ret = wc_Des3_CbcDecrypt(des3, out, in, sz); 
-
-#ifdef WOLFSSL_SMALL_STACK
-    XFREE(des3, NULL, DYNAMIC_TYPE_TMP_BUFFER);
-#endif
-
-    return ret;
 }
 
 

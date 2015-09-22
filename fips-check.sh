@@ -11,12 +11,12 @@
 #
 #     $ ./fips-check [version]
 #
-#     - version: linux (default), ios, android, windows
+#     - version: linux (default), ios, android, windows, freertos
 #
 
 function Usage() {
     echo "Usage: $0 [platform]"
-    echo "Where \"platform\" is one of linux (default), ios, android, windows"
+    echo "Where \"platform\" is one of linux (default), ios, android, windows, freertos"
 }
 
 LINUX_FIPS_VERSION=v3.2.6
@@ -34,11 +34,15 @@ ANDROID_FIPS_REPO=git@github.com:wolfSSL/fips.git
 ANDROID_CTAO_VERSION=v3.5.0
 ANDROID_CTAO_REPO=git@github.com:cyassl/cyassl.git
 
-#WINDOWS_FIPS_VERSION=v3.6.0
-WINDOWS_FIPS_VERSION=master
+WINDOWS_FIPS_VERSION=v3.6.6
 WINDOWS_FIPS_REPO=git@github.com:wolfSSL/fips.git
-WINDOWS_CTAO_VERSION=v3.6.0
+WINDOWS_CTAO_VERSION=v3.6.6
 WINDOWS_CTAO_REPO=git@github.com:cyassl/cyassl.git
+
+FREERTOS_FIPS_VERSION=v3.6.1-FreeRTOS
+FREERTOS_FIPS_REPO=git@github.com:wolfSSL/fips.git
+FREERTOS_CTAO_VERSION=v3.6.1
+FREERTOS_CTAO_REPO=git@github.com:cyassl/cyassl.git
 
 FIPS_SRCS=( fips.c fips_test.c )
 WC_MODS=( aes des3 sha sha256 sha512 rsa hmac random )
@@ -67,6 +71,12 @@ windows)
   CTAO_VERSION=$WINDOWS_CTAO_VERSION
   CTAO_REPO=$WINDOWS_CTAO_REPO
   ;;
+freertos)
+  FIPS_VERSION=$FREERTOS_FIPS_VERSION
+  FIPS_REPO=$FREERTOS_FIPS_REPO
+  CTAO_VERSION=$FREERTOS_CTAO_VERSION
+  CTAO_REPO=$FREERTOS_CTAO_REPO
+  ;;
 linux)
   FIPS_VERSION=$LINUX_FIPS_VERSION
   FIPS_REPO=$LINUX_FIPS_REPO
@@ -79,13 +89,13 @@ linux)
 esac
 
 git clone . $TEST_DIR
-[ $? -ne 0 ] && echo -e "\n\nCouldn't duplicate current working directory.\n\n" && exit 1
+[ $? -ne 0 ] && echo "\n\nCouldn't duplicate current working directory.\n\n" && exit 1
 
 pushd $TEST_DIR
 
 # make a clone of the last FIPS release tag
 git clone -b $CTAO_VERSION $CTAO_REPO old-tree
-[ $? -ne 0 ] && echo -e "\n\nCouldn't checkout the FIPS release.\n\n" && exit 1
+[ $? -ne 0 ] && echo "\n\nCouldn't checkout the FIPS release.\n\n" && exit 1
 
 for MOD in ${WC_MODS[@]}
 do
@@ -102,7 +112,7 @@ cp old-tree/$WC_INC_PATH/random.h $WC_INC_PATH
 
 # clone the FIPS repository
 git clone -b $FIPS_VERSION $FIPS_REPO fips
-[ $? -ne 0 ] && echo -e "\n\nCouldn't checkout the FIPS repository.\n\n" && exit 1
+[ $? -ne 0 ] && echo "\n\nCouldn't checkout the FIPS repository.\n\n" && exit 1
 
 for SRC in ${FIPS_SRCS[@]}
 do
@@ -113,7 +123,7 @@ done
 ./autogen.sh
 ./configure --enable-fips
 make
-[ $? -ne 0 ] && echo -e "\n\nMake failed. Debris left for analysis." && exit 1
+[ $? -ne 0 ] && echo "\n\nMake failed. Debris left for analysis." && exit 1
 
 NEWHASH=`./wolfcrypt/test/testwolfcrypt | sed -n 's/hash = \(.*\)/\1/p'`
 if [ -n "$NEWHASH" ]; then
@@ -122,7 +132,7 @@ if [ -n "$NEWHASH" ]; then
 fi
 
 make test
-[ $? -ne 0 ] && echo -e "\n\nTest failed. Debris left for analysis." && exit 1
+[ $? -ne 0 ] && echo "\n\nTest failed. Debris left for analysis." && exit 1
 
 # Clean up
 popd

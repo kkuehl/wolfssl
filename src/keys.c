@@ -27,11 +27,17 @@
 
 #include <wolfssl/wolfcrypt/settings.h>
 
+#ifndef WOLFCRYPT_ONLY
+
 #include <wolfssl/internal.h>
 #include <wolfssl/error-ssl.h>
 #if defined(SHOW_SECRETS) || defined(CHACHA_AEAD_TEST)
     #ifdef FREESCALE_MQX
-        #include <fio.h>
+        #if MQX_USE_IO_OLD
+            #include <fio.h>
+        #else
+            #include <nio.h>
+        #endif
     #else
         #include <stdio.h>
     #endif
@@ -2774,4 +2780,6 @@ int MakeMasterSecret(WOLFSSL* ssl)
     return MakeSslMasterSecret(ssl);
 #endif
 }
+
+#endif /* WOLFCRYPT_ONLY */
 

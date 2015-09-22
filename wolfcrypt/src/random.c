@@ -39,33 +39,33 @@ int wc_GenerateSeed(OS_Seed* os, byte* seed, word32 sz)
 }
 
 #ifdef HAVE_CAVIUM
-    int  wc_InitRngCavium(RNG* rng, int i)
+    int  wc_InitRngCavium(WC_RNG* rng, int i)
     {
         return InitRngCavium(rng, i);
     }
 #endif
 
 
-int  wc_InitRng(RNG* rng)
+int  wc_InitRng(WC_RNG* rng)
 {
     return InitRng_fips(rng);
 }
 
 
-int  wc_RNG_GenerateBlock(RNG* rng, byte* b, word32 sz)
+int  wc_RNG_GenerateBlock(WC_RNG* rng, byte* b, word32 sz)
 {
     return RNG_GenerateBlock_fips(rng, b, sz);
 }
 
 
-int  wc_RNG_GenerateByte(RNG* rng, byte* b)
+int  wc_RNG_GenerateByte(WC_RNG* rng, byte* b)
 {
     return RNG_GenerateByte(rng, b);
 }
 
 #if defined(HAVE_HASHDRBG) || defined(NO_RC4)
 
-    int wc_FreeRng(RNG* rng)
+    int wc_FreeRng(WC_RNG* rng)
     {
         return FreeRng_fips(rng);
     }
@@ -107,11 +107,15 @@ int  wc_RNG_GenerateByte(RNG* rng, byte* b)
         #ifndef EBSNET
             #include <unistd.h>
         #endif
+    #elif defined(FREESCALE_TRNG)
+        #define TRNG_INSTANCE (0)
+        #include "fsl_device_registers.h"
+        #include "fsl_trng_driver.h"
     #else
         /* include headers that may be needed to get good seed */
     #endif
 #endif /* USE_WINDOWS_API */
-    
+
 #ifdef HAVE_INTEL_RDGEN
     static int wc_InitRng_IntelRD(void) ;
     #if defined(HAVE_HASHDRBG) || defined(NO_RC4)
@@ -434,7 +438,7 @@ static int Hash_DRBG_Uninstantiate(DRBG* drbg)
 
 
 /* Get seed and key cipher */
-int wc_InitRng(RNG* rng)
+int wc_InitRng(WC_RNG* rng)
 {
     int ret = BAD_FUNC_ARG;
 
@@ -487,7 +491,7 @@ int wc_InitRng(RNG* rng)
 
 
 /* place a generated block in output */
-int wc_RNG_GenerateBlock(RNG* rng, byte* output, word32 sz)
+int wc_RNG_GenerateBlock(WC_RNG* rng, byte* output, word32 sz)
 {
     int ret;
 
@@ -536,13 +540,13 @@ int wc_RNG_GenerateBlock(RNG* rng, byte* output, word32 sz)
 }
 
 
-int wc_RNG_GenerateByte(RNG* rng, byte* b)
+int wc_RNG_GenerateByte(WC_RNG* rng, byte* b)
 {
     return wc_RNG_GenerateBlock(rng, b, 1);
 }
 
 
-int wc_FreeRng(RNG* rng)
+int wc_FreeRng(WC_RNG* rng)
 {
     int ret = BAD_FUNC_ARG;
 
@@ -687,7 +691,7 @@ static int wc_RNG_HealthTestLocal(int reseed)
 #else /* HAVE_HASHDRBG || NO_RC4 */
 
 /* Get seed and key cipher */
-int wc_InitRng(RNG* rng)
+int wc_InitRng(WC_RNG* rng)
 {
     int  ret;
 #ifdef WOLFSSL_SMALL_STACK
@@ -736,11 +740,11 @@ int wc_InitRng(RNG* rng)
 }
 
 #ifdef HAVE_CAVIUM
-    static void CaviumRNG_GenerateBlock(RNG* rng, byte* output, word32 sz);
+    static void CaviumRNG_GenerateBlock(WC_RNG* rng, byte* output, word32 sz);
 #endif
 
 /* place a generated block in output */
-int wc_RNG_GenerateBlock(RNG* rng, byte* output, word32 sz)
+int wc_RNG_GenerateBlock(WC_RNG* rng, byte* output, word32 sz)
 {
 #ifdef HAVE_INTEL_RDGEN
     if(IS_INTEL_RDRAND)
@@ -757,13 +761,13 @@ int wc_RNG_GenerateBlock(RNG* rng, byte* output, word32 sz)
 }
 
 
-int wc_RNG_GenerateByte(RNG* rng, byte* b)
+int wc_RNG_GenerateByte(WC_RNG* rng, byte* b)
 {
     return wc_RNG_GenerateBlock(rng, b, 1);
 }
 
 
-int wc_FreeRng(RNG* rng)
+int wc_FreeRng(WC_RNG* rng)
 {
     (void)rng;
     return 0;
@@ -776,7 +780,7 @@ int wc_FreeRng(RNG* rng)
 #include "cavium_common.h"
 
 /* Initiliaze RNG for use with Nitrox device */
-int wc_InitRngCavium(RNG* rng, int devId)
+int wc_InitRngCavium(WC_RNG* rng, int devId)
 {
     if (rng == NULL)
         return -1;
@@ -788,7 +792,7 @@ int wc_InitRngCavium(RNG* rng, int devId)
 }
 
 
-static void CaviumRNG_GenerateBlock(RNG* rng, byte* output, word32 sz)
+static void CaviumRNG_GenerateBlock(WC_RNG* rng, byte* output, word32 sz)
 {
     wolfssl_word offset = 0;
     word32      requestId;
@@ -872,7 +876,7 @@ static int wc_InitRng_IntelRD()
 #if defined(HAVE_HASHDRBG) || defined(NO_RC4)
 
 /* return 0 on success */
-static inline int IntelRDseed32(unsigned int *seed)  
+static INLINE int IntelRDseed32(unsigned int *seed)  
 {  
     int rdseed;  unsigned char ok ;
 
@@ -885,7 +889,7 @@ static inline int IntelRDseed32(unsigned int *seed)
 }
 
 /* return 0 on success */
-static inline int IntelRDseed32_r(unsigned int *rnd)  
+static INLINE int IntelRDseed32_r(unsigned int *rnd)  
 {  
     int i ;
     for(i=0; i<INTELRD_RETRY;i++) {
@@ -920,7 +924,7 @@ static int wc_GenerateSeed_IntelRD(OS_Seed* os, byte* output, word32 sz)
 #else
 
 /* return 0 on success */
-static inline int IntelRDrand32(unsigned int *rnd)  
+static INLINE int IntelRDrand32(unsigned int *rnd)  
 {  
     int rdrand; unsigned char ok ;  
     __asm__ volatile("rdrand %0; setc %1":"=r"(rdrand), "=qm"(ok));  
@@ -932,7 +936,7 @@ static inline int IntelRDrand32(unsigned int *rnd)
 }
 
 /* return 0 on success */
-static inline int IntelRDrand32_r(unsigned int *rnd)  
+static INLINE int IntelRDrand32_r(unsigned int *rnd)  
 {  
     int i ;
     for(i=0; i<INTELRD_RETRY;i++) {
@@ -1017,18 +1021,6 @@ int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
     return 0;
 }
 
-#elif defined(MBED)
-
-/* write a real one !!!, just for testing board */
-int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
-{
-    int i;
-    for (i = 0; i < sz; i++ )
-        output[i] = i;
-
-    return 0;
-}
-
 #elif defined(MICROCHIP_PIC32)
 
 #ifdef MICROCHIP_MPLAB_HARMONY
@@ -1092,7 +1084,8 @@ int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
         }
     #endif /* WOLFSSL_MIC32MZ_RNG */
 
-#elif defined(FREESCALE_MQX)
+#elif defined(FREESCALE_MQX) || defined(FREESCALE_KSDK_MQX) || \
+      defined(FREESCALE_KSDK_BM) || defined(FREESCALE_FREE_RTOS)
 
     #ifdef FREESCALE_K70_RNGA
         /*
@@ -1166,6 +1159,14 @@ int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
             return 0;
         }
 
+    #elif defined(FREESCALE_TRNG)
+
+        int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
+        {
+            TRNG_DRV_GetRandomData(TRNG_INSTANCE, output, sz);
+            return(0);
+        }
+
     #else
         #warning "write a real random seed!!!!, just for testing now"
 
@@ -1181,7 +1182,8 @@ int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
 
 #elif defined(WOLFSSL_SAFERTOS) || defined(WOLFSSL_LEANPSK) \
    || defined(WOLFSSL_IAR_ARM)  || defined(WOLFSSL_MDK_ARM) \
-   || defined(WOLFSSL_uITRON4)  || defined(WOLFSSL_uTKERNEL2)
+   || defined(WOLFSSL_uITRON4)  || defined(WOLFSSL_uTKERNEL2)\
+   || defined(WOLFSSL_GENSEED_FORTEST)
 
 #warning "write a real random seed!!!!, just for testing now"
 
@@ -1225,7 +1227,7 @@ int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
 
         return 0;
     }
-#elif defined(WOLFSSL_LPC43xx) || defined(WOLFSSL_STM32F2xx)
+#elif defined(WOLFSSL_LPC43xx) || defined(WOLFSSL_STM32F2xx) || defined(MBED)
 
     #warning "write a real random seed!!!!, just for testing now"
 
@@ -1297,6 +1299,20 @@ int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
     return 0;
 }
 */
+
+
+#elif defined(IDIRECT_DEV_RANDOM)
+
+extern int getRandom( int sz, unsigned char *output );
+
+int GenerateSeed(OS_Seed* os, byte* output, word32 sz)
+{
+    int num_bytes_returned = 0;
+
+    num_bytes_returned = getRandom( (int) sz, (unsigned char *) output );
+
+    return 0;
+}
 
 
 #else /* !USE_WINDOWS_API && !HAVE_RPT_SYS && !MICRIUM && !NO_DEV_RANDOM */

@@ -32,7 +32,11 @@
 
 #ifdef FREESCALE_MQX
     #include <mqx.h>
-    #include <fio.h>
+    #if MQX_USE_IO_OLD
+        #include <fio.h>
+    #else
+        #include <nio.h>
+    #endif
 #else
     #include <stdio.h>
 #endif
@@ -101,19 +105,14 @@
 #if defined(USE_CERT_BUFFERS_1024) || defined(USE_CERT_BUFFERS_2048) \
                                    || !defined(NO_DH)
     /* include test cert and key buffers for use with NO_FILESYSTEM */
-    #if defined(WOLFSSL_MDK_ARM)
-        #include "cert_data.h" /* use certs_test.c for initial data, 
-                                      so other commands can share the data. */
-    #else
         #include <wolfssl/certs_test.h>
-    #endif
 #endif
 
 
 #ifdef HAVE_BLAKE2
     #include <wolfssl/wolfcrypt/blake2.h>
     void bench_blake2(void);
-#endif
+#endif 
 
 #ifdef _MSC_VER
     /* 4996 warning to use MS extensions e.g., strcpy_s instead of strncpy */
@@ -194,7 +193,7 @@ static int OpenNitroxDevice(int dma_mode,int dev_id)
 #if !defined(NO_RSA) || !defined(NO_DH) \
                                 || defined(WOLFSSL_KEYGEN) || defined(HAVE_ECC)
     #define HAVE_LOCAL_RNG
-    static RNG rng;
+    static WC_RNG rng;
 #endif
 
 /* use kB instead of mB for embedded benchmarking */

@@ -36,6 +36,8 @@
     #include <wolfssl/wolfcrypt/tfm.h>
 #else
 
+#include <wolfssl/wolfcrypt/random.h> 
+
 #ifndef CHAR_BIT
     #if defined(WOLFSSL_LINUXKM)
     #include <linux/limits.h>
@@ -309,7 +311,7 @@ int mp_radix_size (mp_int * a, int radix, int *size);
 #if defined(HAVE_ECC) || defined(WOLFSSL_KEY_GEN)
     int mp_sqrmod(mp_int* a, mp_int* b, mp_int* c);
 #endif
-#ifdef HAVE_ECC
+#if defined(HAVE_ECC) || defined(WOLFSSL_KEY_GEN)
     int mp_read_radix(mp_int* a, const char* str, int radix);
 #endif
 
@@ -317,6 +319,7 @@ int mp_radix_size (mp_int * a, int radix, int *size);
     int mp_prime_is_prime (mp_int * a, int t, int *result);
     int mp_gcd (mp_int * a, mp_int * b, mp_int * c);
     int mp_lcm (mp_int * a, mp_int * b, mp_int * c);
+    int mp_rand_prime(mp_int* N, int len, WC_RNG* rng, void* heap);
 #endif
 
 int mp_cnt_lsb(mp_int *a);
